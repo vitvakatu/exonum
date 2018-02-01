@@ -1,5 +1,10 @@
 language: rust
 
+branches:
+  only:
+    - staging
+    - trying
+
 addons:
   apt:
     sources:
