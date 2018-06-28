@@ -29,6 +29,8 @@ extern crate bodyparser;
 #[macro_use]
 extern crate exonum;
 #[macro_use]
+extern crate exonum_storage_derive;
+#[macro_use]
 extern crate failure;
 extern crate iron;
 extern crate router;
@@ -76,39 +78,9 @@ pub mod schema {
     }
 
     /// Schema of the key-value storage used by the demo cryptocurrency service.
-    pub struct CurrencySchema<T> {
-        view: T,
-    }
-
-    /// Declare the layout of data managed by the service. An instance of [`MapIndex`] is used
-    /// to keep wallets in the storage. Index values are serialized [`Wallet`] structs.
-    ///
-    /// [`MapIndex`]: https://exonum.com/doc/architecture/storage#mapindex
-    /// [`Wallet`]: struct.Wallet.html
-    impl<T: AsRef<Snapshot>> CurrencySchema<T> {
-        /// Creates a new schema instance.
-        pub fn new(view: T) -> Self {
-            CurrencySchema { view }
-        }
-
-        /// Returns an immutable version of the wallets table.
-        pub fn wallets(&self) -> MapIndex<&Snapshot, PublicKey, Wallet> {
-            MapIndex::new("cryptocurrency.wallets", self.view.as_ref())
-        }
-
-        /// Gets a specific wallet from the storage.
-        pub fn wallet(&self, pub_key: &PublicKey) -> Option<Wallet> {
-            self.wallets().get(pub_key)
-        }
-    }
-
-    /// A mutable version of the schema with an additional method to persist wallets
-    /// to the storage.
-    impl<'a> CurrencySchema<&'a mut Fork> {
-        /// Returns a mutable version of the wallets table.
-        pub fn wallets_mut(&mut self) -> MapIndex<&mut Fork, PublicKey, Wallet> {
-            MapIndex::new("cryptocurrency.wallets", &mut self.view)
-        }
+    #[derive(Schema)]
+    pub struct CurrencySchema {
+        wallets: Wallets<PublicKey, Wallet>,
     }
 }
 

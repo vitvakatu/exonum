@@ -18,6 +18,7 @@ circle-ci = { repository = "exonum/exonum" }
 
 [dependencies]
 exonum = { version = "0.8.0", path = "../../exonum" }
+exonum-storage-derive = { path = "../../exonum-storage-derive" }
 iron = "=0.6.0"
 bodyparser = "=0.8.0"
 router = "=0.6.0"
