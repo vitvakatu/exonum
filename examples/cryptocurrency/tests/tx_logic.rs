@@ -231,7 +231,7 @@ fn test_fuzz_transfers() {
 
         // Test invariants that should be maintained during fuzz testing.
         let schema = CurrencySchema::new(testkit.snapshot());
-        let wallets = schema.wallets();
+        let wallets = schema.wallets_read();
         let wallets: Vec<_> = wallets.values().collect();
         // There must be 2 wallets in the storage.
         assert_eq!(wallets.len(), 2);

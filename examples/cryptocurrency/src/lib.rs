@@ -41,7 +41,7 @@ extern crate serde_json;
 /// Persistent data.
 pub mod schema {
     use exonum::{crypto::PublicKey,
-                 storage::MapIndex};
+                 storage::{MapIndex, Snapshot}};
 
     // Declare the data to be stored in the blockchain, namely wallets with balances.
     // See [serialization docs][1] for details.
@@ -82,6 +82,12 @@ pub mod schema {
         view: T,
         #[schema(MapIndex)]
         pub wallets: Wallets<T, PublicKey, Wallet>,
+    }
+
+    impl<T: AsRef<Snapshot>> CurrencySchema<T> {
+        pub fn wallet(&self, key: &PublicKey) -> Option<Wallet> {
+            self.wallets_read().get(key)
+        }
     }
 }
 
