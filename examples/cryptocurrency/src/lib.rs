@@ -81,7 +81,7 @@ pub mod schema {
     pub struct CurrencySchema<T> {
         view: T,
         #[schema(MapIndex)]
-        pub wallets: Wallets<T, PublicKey, Wallet>,
+        wallets: Wallets<T, PublicKey, Wallet>,
     }
 
     impl<T: AsRef<Snapshot>> CurrencySchema<T> {

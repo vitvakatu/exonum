@@ -89,8 +89,10 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                                     }
                                 }
                             };
+
                             let read_func_ident = ident.to_string() + "_read";
                             let read_func_ident = syn::Ident::new(&read_func_ident, proc_macro2::Span::call_site());
+
                             let impl_read = quote!{
                                 impl<'a, T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
                                     pub fn read(&self, view: &'a ::exonum::storage::Snapshot) -> #index_type<&'a ::exonum::storage::Snapshot, #key_type, #value_type> {
@@ -121,6 +123,7 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                                     }
                                 }
                             };
+
                             tokens.extend(quote! {
                                 #struct_definition
                                 #impl_new
