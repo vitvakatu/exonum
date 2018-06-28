@@ -46,13 +46,14 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                             let last_segment = type_path.path.segments.last().map(|v| v.into_value()).clone().unwrap();
                             let index_type_name = last_segment.ident.clone();
                             let (key_type, value_type) = get_type_parameters(last_segment);
-                            tokens.extend(quote! {
+                            let struct_definition = quote!{
                                 pub struct #index_type_name <T, K, V> {
                                     _i: ::std::marker::PhantomData<T>,
                                     _k: ::std::marker::PhantomData<K>,
                                     _v: ::std::marker::PhantomData<V>,
                                 }
-
+                            };
+                            let impl_new = quote!{
                                 impl<T, K, V> #index_type_name <T, K, V> {
                                     pub fn new() -> Self {
                                         Self {
@@ -62,18 +63,26 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                                         }
                                     }
                                 }
-
+                            };
+                            let impl_read = quote!{
                                 impl<T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
                                     pub fn read(&self, view: T) -> MapIndex<T, #key_type, #value_type> {
                                         MapIndex::new(stringify!(ident), view)
                                     }
                                 }
-
+                            };
+                            let impl_write = quote!{
                                 impl<'a> #index_type_name <&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
-                                    pub fn write<'s>(&'s self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                    pub fn write(&self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
                                         MapIndex::new(stringify!(ident), view)
                                     }
                                 }
+                            };
+                            tokens.extend(quote! {
+                                #struct_definition
+                                #impl_new
+                                #impl_read
+                                #impl_write
                             });
                             struct_fields.push_value(
                                 quote!(#ident : {
