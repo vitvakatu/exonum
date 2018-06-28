@@ -4,6 +4,7 @@ extern crate syn;
 #[macro_use]
 extern crate quote;
 extern crate exonum;
+use exonum::storage::MapIndex;
 
 use proc_macro2::TokenStream;
 #[proc_macro_derive(Schema)]
@@ -29,23 +30,40 @@ fn generate_functions(data: &syn::Data) -> TokenStream {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
+                    let mut tokens = TokenStream::new();
                     for field in fields.named.iter() {
                         let ident = field.ident.clone().unwrap();
                         let field_type = field.ty.clone();
                         if let syn::Type::Path(type_path) = field_type {
-                            return quote! {
-                                pub struct #type_path {}
-                            }
+                            let last_segment = type_path.path.segments.last().map(|v| v.into_value()).clone().unwrap();
+                            let index_type_name = last_segment.ident.clone();
+                            get_type_parameters(last_segment);
+                            tokens.extend(quote! {
+                                pub struct #index_type_name <T> {
+                                    view: T
+                                }
+                            });
                         } else {
                             panic!("Panic");
                         }
                     }
-                    quote!()
+                    tokens
                 },
                 _ => panic!("Panic"),
             }
         },
         _ => panic!("Panic"),
     }
+}
+
+fn get_type_parameters(last_segment: &syn::PathSegment) -> () {
+    if let syn::PathArguments::AngleBracketed(ref args) = last_segment.arguments {
+        let mut args = args.args.iter();
+        let key = args.next().clone().unwrap();
+        let value = args.next().clone().unwrap();
+        (key, value)
+    } else {
+        panic!("Panic");
+    };
 }
 
