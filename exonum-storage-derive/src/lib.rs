@@ -11,7 +11,7 @@ use exonum::storage::MapIndex;
 
 use proc_macro2::TokenStream;
 
-#[proc_macro_derive(Schema)]
+#[proc_macro_derive(Schema, attributes(schema))]
 pub fn schema_custom_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: TokenStream = input.into();
 
@@ -42,6 +42,28 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                     for field in fields.named.iter() {
                         let ident = field.ident.clone().unwrap();
                         let field_type = field.ty.clone();
+                        let attributes = field.attrs.clone();
+                        let mut index_type = None;
+                        for attribute in &attributes {
+                            let meta = attribute.interpret_meta();
+                            if let Some(syn::Meta::List(ref list)) = meta {
+                                if list.ident == "schema" {
+                                    if let syn::NestedMeta::Meta(syn::Meta::Word(ref word)) = list.nested.first().unwrap().into_value() {
+                                        index_type = Some(word.clone());
+                                    } else {
+                                        panic!("Error3")
+                                    }
+                                } else {
+                                    panic!("Error2")
+                                }
+                            } else {
+                                panic!("Error");
+                            }
+                        }
+                        let index_type = match index_type {
+                            Some(x) => x,
+                            None => continue,
+                        };
                         if let syn::Type::Path(ref type_path) = field_type {
                             let last_segment = type_path.path.segments.last().map(|v| v.into_value()).clone().unwrap();
                             let index_type_name = last_segment.ident.clone();
@@ -71,13 +93,13 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                             let read_func_ident = syn::Ident::new(&read_func_ident, proc_macro2::Span::call_site());
                             let impl_read = quote!{
                                 impl<'a, T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
-                                    pub fn read(&self, view: &'a ::exonum::storage::Snapshot) -> MapIndex<&'a ::exonum::storage::Snapshot, #key_type, #value_type> {
-                                        MapIndex::new(stringify!(ident), view)
+                                    pub fn read(&self, view: &'a ::exonum::storage::Snapshot) -> #index_type<&'a ::exonum::storage::Snapshot, #key_type, #value_type> {
+                                        #index_type::new(stringify!(ident), view)
                                     }
                                 }
 
                                 impl<T: AsRef<::exonum::storage::Snapshot>> #struct_ident <T> {
-                                    pub fn #read_func_ident(&self) -> MapIndex<& ::exonum::storage::Snapshot, #key_type, #value_type> {
+                                    pub fn #read_func_ident(&self) -> #index_type<& ::exonum::storage::Snapshot, #key_type, #value_type> {
                                         self.#ident.read(self.view.as_ref())
                                     }
                                 }
@@ -88,14 +110,14 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
 
                             let impl_write = quote!{
                                 impl<'a> #index_type_name <&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
-                                    pub fn write(&self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
-                                        MapIndex::new(stringify!(ident), view)
+                                    pub fn write(&self, view: &'a mut ::exonum::storage::Fork) -> #index_type<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                        #index_type::new(stringify!(ident), view)
                                     }
                                 }
 
                                 impl<'a> #struct_ident <&'a mut ::exonum::storage::Fork> {
-                                    pub fn #write_func_ident(&'a mut self) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
-                                        MapIndex::new(stringify!(ident), self.view)
+                                    pub fn #write_func_ident(&'a mut self) -> #index_type<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                        #index_type::new(stringify!(ident), self.view)
                                     }
                                 }
                             };

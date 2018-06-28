@@ -80,6 +80,7 @@ pub mod schema {
     #[derive(Schema)]
     pub struct CurrencySchema<T> {
         view: T,
+        #[schema(MapIndex)]
         pub wallets: Wallets<T, PublicKey, Wallet>,
     }
 }
