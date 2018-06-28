@@ -45,7 +45,10 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                         if let syn::Type::Path(ref type_path) = field_type {
                             let last_segment = type_path.path.segments.last().map(|v| v.into_value()).clone().unwrap();
                             let index_type_name = last_segment.ident.clone();
-                            let (key_type, value_type) = get_type_parameters(last_segment);
+                            let (key_type, value_type) = match get_type_parameters(last_segment) {
+                                Some(v) => v,
+                                None => continue,
+                            };
                             let struct_definition = quote!{
                                 pub struct #index_type_name <T, K, V> {
                                     _i: ::std::marker::PhantomData<T>,
@@ -64,17 +67,35 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                                     }
                                 }
                             };
+                            let read_func_ident = ident.to_string() + "_read";
+                            let read_func_ident = syn::Ident::new(&read_func_ident, proc_macro2::Span::call_site());
                             let impl_read = quote!{
-                                impl<T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
-                                    pub fn read(&self, view: T) -> MapIndex<T, #key_type, #value_type> {
+                                impl<'a, T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
+                                    pub fn read(&self, view: &'a ::exonum::storage::Snapshot) -> MapIndex<&'a ::exonum::storage::Snapshot, #key_type, #value_type> {
                                         MapIndex::new(stringify!(ident), view)
                                     }
                                 }
+
+                                impl<T: AsRef<::exonum::storage::Snapshot>> #struct_ident <T> {
+                                    pub fn #read_func_ident(&self) -> MapIndex<& ::exonum::storage::Snapshot, #key_type, #value_type> {
+                                        self.#ident.read(self.view.as_ref())
+                                    }
+                                }
                             };
+
+                            let write_func_ident = ident.to_string() + "_write";
+                            let write_func_ident = syn::Ident::new(&write_func_ident, proc_macro2::Span::call_site());
+
                             let impl_write = quote!{
                                 impl<'a> #index_type_name <&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
                                     pub fn write(&self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
                                         MapIndex::new(stringify!(ident), view)
+                                    }
+                                }
+
+                                impl<'a> #struct_ident <&'a mut ::exonum::storage::Fork> {
+                                    pub fn #write_func_ident(&'a mut self) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                        MapIndex::new(stringify!(ident), self.view)
                                     }
                                 }
                             };
@@ -90,15 +111,14 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                                     index
                                 })
                             );
-                        } else {
-                            panic!("Panic");
-                        }
+                        } else {}
                     }
                     tokens.extend(
                         quote!{
                             impl<T> #struct_ident <T> {
-                                pub fn new() -> Self {
+                                pub fn new(view: T) -> Self {
                                     Self {
+                                        view,
                                         #struct_fields
                                     }
                                 }
@@ -107,22 +127,22 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
                     );
                     tokens
                 },
-                _ => panic!("Panic"),
+                _ => panic!("Panic1"),
             }
         },
-        _ => panic!("Panic"),
+        _ => panic!("Panic2"),
     }
 }
 
-fn get_type_parameters(last_segment: &syn::PathSegment) -> (syn::GenericArgument, syn::GenericArgument) {
+fn get_type_parameters(last_segment: &syn::PathSegment) -> Option<(syn::GenericArgument, syn::GenericArgument)> {
     let types = if let syn::PathArguments::AngleBracketed(ref args) = last_segment.arguments {
         let mut args = args.args.iter();
         let _ = args.next();
         let key = args.next().unwrap();
         let value = args.next().unwrap();
-        (key.clone(), value.clone())
+        Some((key.clone(), value.clone()))
     } else {
-        panic!("Panic");
+        None
     };
     types
 }
