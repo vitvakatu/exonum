@@ -65,13 +65,13 @@ fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
 
                                 impl<T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
                                     pub fn read(&self, view: T) -> MapIndex<T, #key_type, #value_type> {
-                                        MapIndex::new("wallets", view)
+                                        MapIndex::new(stringify!(ident), view)
                                     }
                                 }
 
                                 impl<'a> #index_type_name <&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
                                     pub fn write<'s>(&'s self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
-                                        MapIndex::new("wallets", view)
+                                        MapIndex::new(stringify!(ident), view)
                                     }
                                 }
                             });
