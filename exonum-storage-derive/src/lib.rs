@@ -1,3 +1,5 @@
+#![recursion_limit="128"]
+
 extern crate proc_macro;
 extern crate proc_macro2;
 extern crate syn;
@@ -6,17 +8,16 @@ extern crate quote;
 extern crate exonum;
 use exonum::storage::MapIndex;
 
+
 use proc_macro2::TokenStream;
+
 #[proc_macro_derive(Schema)]
 pub fn schema_custom_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: TokenStream = input.into();
 
     let ast: syn::DeriveInput = syn::parse2(input).unwrap();
-    let ident = ast.ident;
 
-    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
-
-    let functions = generate_functions(&ast.data);
+    let functions = generate_functions(&ast);
     let output: TokenStream = quote!{
         #functions
     };
@@ -25,28 +26,76 @@ pub fn schema_custom_derive(input: proc_macro::TokenStream) -> proc_macro::Token
 }
 
 
-fn generate_functions(data: &syn::Data) -> TokenStream {
+fn generate_functions(ast: &syn::DeriveInput) -> TokenStream {
+    let struct_ident = ast.ident.clone();
+
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+
+    let data = &ast.data;
+
     match *data {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     let mut tokens = TokenStream::new();
+                    let mut struct_fields: syn::punctuated::Punctuated<_, syn::token::Comma> = syn::punctuated::Punctuated::new();
                     for field in fields.named.iter() {
                         let ident = field.ident.clone().unwrap();
                         let field_type = field.ty.clone();
-                        if let syn::Type::Path(type_path) = field_type {
+                        if let syn::Type::Path(ref type_path) = field_type {
                             let last_segment = type_path.path.segments.last().map(|v| v.into_value()).clone().unwrap();
                             let index_type_name = last_segment.ident.clone();
-                            get_type_parameters(last_segment);
+                            let (key_type, value_type) = get_type_parameters(last_segment);
                             tokens.extend(quote! {
-                                pub struct #index_type_name <T> {
-                                    view: T
+                                pub struct #index_type_name <T, K, V> {
+                                    _i: ::std::marker::PhantomData<T>,
+                                    _k: ::std::marker::PhantomData<K>,
+                                    _v: ::std::marker::PhantomData<V>,
+                                }
+
+                                impl<T, K, V> #index_type_name <T, K, V> {
+                                    pub fn new() -> Self {
+                                        Self {
+                                            _i: Default::default(),
+                                            _k: Default::default(),
+                                            _v: Default::default(),
+                                        }
+                                    }
+                                }
+
+                                impl<T: AsRef<::exonum::storage::Snapshot>> #index_type_name <T, #key_type, #value_type> {
+                                    pub fn read(&self, view: T) -> MapIndex<T, #key_type, #value_type> {
+                                        MapIndex::new("wallets", view)
+                                    }
+                                }
+
+                                impl<'a> #index_type_name <&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                    pub fn write<'s>(&'s self, view: &'a mut ::exonum::storage::Fork) -> MapIndex<&'a mut ::exonum::storage::Fork, #key_type, #value_type> {
+                                        MapIndex::new("wallets", view)
+                                    }
                                 }
                             });
+                            struct_fields.push_value(
+                                quote!(#ident : {
+                                    let index: #field_type = #index_type_name::new();
+                                    index
+                                })
+                            );
                         } else {
                             panic!("Panic");
                         }
                     }
+                    tokens.extend(
+                        quote!{
+                            impl<T> #struct_ident <T> {
+                                pub fn new() -> Self {
+                                    Self {
+                                        #struct_fields
+                                    }
+                                }
+                            }
+                        }
+                    );
                     tokens
                 },
                 _ => panic!("Panic"),
@@ -56,14 +105,16 @@ fn generate_functions(data: &syn::Data) -> TokenStream {
     }
 }
 
-fn get_type_parameters(last_segment: &syn::PathSegment) -> () {
-    if let syn::PathArguments::AngleBracketed(ref args) = last_segment.arguments {
+fn get_type_parameters(last_segment: &syn::PathSegment) -> (syn::GenericArgument, syn::GenericArgument) {
+    let types = if let syn::PathArguments::AngleBracketed(ref args) = last_segment.arguments {
         let mut args = args.args.iter();
-        let key = args.next().clone().unwrap();
-        let value = args.next().clone().unwrap();
-        (key, value)
+        let _ = args.next();
+        let key = args.next().unwrap();
+        let value = args.next().unwrap();
+        (key.clone(), value.clone())
     } else {
         panic!("Panic");
     };
+    types
 }
 

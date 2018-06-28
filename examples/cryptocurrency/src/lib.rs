@@ -23,7 +23,6 @@
 //! [docs]: https://exonum.com/doc/get-started/create-service
 //! [readme]: https://github.com/exonum/cryptocurrency#readme
 
-#![deny(missing_docs)]
 
 extern crate bodyparser;
 #[macro_use]
@@ -42,7 +41,7 @@ extern crate serde_json;
 /// Persistent data.
 pub mod schema {
     use exonum::{crypto::PublicKey,
-                 storage::{Fork, MapIndex, Snapshot}};
+                 storage::MapIndex};
 
     // Declare the data to be stored in the blockchain, namely wallets with balances.
     // See [serialization docs][1] for details.
@@ -79,8 +78,8 @@ pub mod schema {
 
     /// Schema of the key-value storage used by the demo cryptocurrency service.
     #[derive(Schema)]
-    pub struct CurrencySchema {
-        wallets: Wallets<PublicKey, Wallet>,
+    pub struct CurrencySchema<T> {
+        pub wallets: Wallets<T, PublicKey, Wallet>,
     }
 }
 
@@ -191,11 +190,11 @@ pub mod contracts {
         /// with the specified public key and name, and an initial balance of 100.
         /// Otherwise, performs no op.
         fn execute(&self, view: &mut Fork) -> ExecutionResult {
-            let mut schema = CurrencySchema::new(view);
-            if schema.wallet(self.pub_key()).is_none() {
+            let schema = CurrencySchema::new();
+            if schema.wallets.read(&mut *view).get(self.pub_key()).is_none() {
                 let wallet = Wallet::new(self.pub_key(), self.name(), INIT_BALANCE);
                 println!("Create the wallet: {:?}", wallet);
-                schema.wallets_mut().put(self.pub_key(), wallet);
+                schema.wallets.write(&mut *view).put(self.pub_key(), wallet);
                 Ok(())
             } else {
                 Err(Error::WalletAlreadyExists)?
@@ -217,14 +216,14 @@ pub mod contracts {
         ///
         /// [`TxCreateWallet`]: ../transactions/struct.TxCreateWallet.html
         fn execute(&self, view: &mut Fork) -> ExecutionResult {
-            let mut schema = CurrencySchema::new(view);
+            let schema = CurrencySchema::new();
 
-            let sender = match schema.wallet(self.from()) {
+            let sender = match schema.wallets.read(&mut *view).get(self.from()) {
                 Some(val) => val,
                 None => Err(Error::SenderNotFound)?,
             };
 
-            let receiver = match schema.wallet(self.to()) {
+            let receiver = match schema.wallets.read(&mut *view).get(self.to()) {
                 Some(val) => val,
                 None => Err(Error::ReceiverNotFound)?,
             };
@@ -234,7 +233,7 @@ pub mod contracts {
                 let sender = sender.decrease(amount);
                 let receiver = receiver.increase(amount);
                 println!("Transfer between wallets: {:?} => {:?}", sender, receiver);
-                let mut wallets = schema.wallets_mut();
+                let mut wallets = schema.wallets.write(&mut *view);
                 wallets.put(self.from(), sender);
                 wallets.put(self.to(), receiver);
                 Ok(())
@@ -301,9 +300,9 @@ pub mod api {
             })?;
 
             let snapshot = self.blockchain.snapshot();
-            let schema = CurrencySchema::new(snapshot);
+            let schema = CurrencySchema::new();
 
-            if let Some(wallet) = schema.wallet(&public_key) {
+            if let Some(wallet) = schema.wallets.read(snapshot).get(&public_key) {
                 self.ok_response(&serde_json::to_value(wallet).unwrap())
             } else {
                 self.not_found_response(&serde_json::to_value("Wallet not found").unwrap())
@@ -313,8 +312,8 @@ pub mod api {
         /// Endpoint for dumping all wallets from the storage.
         fn get_wallets(&self, _: &mut Request) -> IronResult<Response> {
             let snapshot = self.blockchain.snapshot();
-            let schema = CurrencySchema::new(snapshot);
-            let idx = schema.wallets();
+            let schema = CurrencySchema::new();
+            let idx = schema.wallets.read(snapshot);
             let wallets: Vec<Wallet> = idx.values().collect();
 
             self.ok_response(&serde_json::to_value(&wallets).unwrap())
