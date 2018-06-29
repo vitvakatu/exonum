@@ -22,17 +22,18 @@ extern crate exonum;
 extern crate exonum_time;
 extern crate exonum_timestamping;
 
-use exonum::{blockchain::Transaction,
-             crypto::{gen_keypair, hash, CryptoHash, Hash},
-             helpers::{init_logger, Height}};
+use exonum::{
+    blockchain::Transaction, crypto::{gen_keypair, hash, CryptoHash, Hash},
+    helpers::{init_logger, Height},
+};
 use exonum_testkit::{ApiKind, TestKit, TestKitApi, TestKitBuilder};
 use exonum_time::{time_provider::MockTimeProvider, TimeService};
 
 use std::time::SystemTime;
 
-use exonum_timestamping::{schema::{Timestamp, TimestampEntry},
-                          transactions::TxTimestamp,
-                          Service};
+use exonum_timestamping::{
+    schema::{Timestamp, TimestampEntry}, transactions::TxTimestamp, Service,
+};
 
 fn init_testkit() -> (TestKit, MockTimeProvider) {
     let _ = init_logger();

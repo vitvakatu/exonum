@@ -24,9 +24,9 @@ use hyper::header::{ContentType, SetCookie};
 use iron::{headers::Cookie, prelude::*, status, IronError};
 use params;
 use router::Router;
-use serde::{de::{self, Deserialize, Deserializer, Visitor},
-            Serialize,
-            Serializer};
+use serde::{
+    de::{self, Deserialize, Deserializer, Visitor}, Serialize, Serializer,
+};
 use serde_json;
 
 use std::{collections::BTreeMap, fmt, io, marker::PhantomData, ops::Deref, str::FromStr};

@@ -14,9 +14,9 @@
 
 //! X25519 related types and methods used in Diffie-Hellman key exchange.
 
-use sodiumoxide::crypto::sign::ed25519::{convert_ed_keypair_to_curve25519,
-                                         PublicKey as PublicKeySodium,
-                                         SecretKey as SecretKeySodium};
+use sodiumoxide::crypto::sign::ed25519::{
+    convert_ed_keypair_to_curve25519, PublicKey as PublicKeySodium, SecretKey as SecretKeySodium,
+};
 
 use std::fmt;
 

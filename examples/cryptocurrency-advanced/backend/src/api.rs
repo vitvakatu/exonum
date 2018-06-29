@@ -15,12 +15,11 @@
 //! Cryptocurrency API.
 
 use bodyparser;
-use exonum::{api::{Api, ApiError},
-             blockchain::{self, BlockProof, Blockchain, Transaction, TransactionSet},
-             crypto::{Hash, PublicKey},
-             helpers::Height,
-             node::TransactionSend,
-             storage::{ListProof, MapProof}};
+use exonum::{
+    api::{Api, ApiError}, blockchain::{self, BlockProof, Blockchain, Transaction, TransactionSet},
+    crypto::{Hash, PublicKey}, helpers::Height, node::TransactionSend,
+    storage::{ListProof, MapProof},
+};
 use iron::prelude::*;
 use router::Router;
 use serde_json;

@@ -13,19 +13,14 @@
 // limitations under the License.
 
 use bodyparser;
-use exonum::{api::ApiError,
-             blockchain::{SharedNodeState, Transaction},
-             node::{create_private_api_handler, create_public_api_handler, ApiSender,
-                    TransactionSend}};
-use iron::{headers::{ContentType, Headers},
-           status::{self, StatusClass},
-           Chain,
-           Handler,
-           IronError,
-           IronResult,
-           Plugin,
-           Request,
-           Response};
+use exonum::{
+    api::ApiError, blockchain::{SharedNodeState, Transaction},
+    node::{create_private_api_handler, create_public_api_handler, ApiSender, TransactionSend},
+};
+use iron::{
+    headers::{ContentType, Headers}, status::{self, StatusClass}, Chain, Handler, IronError,
+    IronResult, Plugin, Request, Response,
+};
 use iron_test::{request, response};
 use log::Level;
 use mount::{Mount, OriginalUrl};

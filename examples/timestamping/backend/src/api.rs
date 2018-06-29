@@ -13,11 +13,10 @@
 // limitations under the License.
 
 use bodyparser;
-use exonum::{api::{Api, ApiError},
-             blockchain::{self, BlockProof, Blockchain, Transaction},
-             crypto::Hash,
-             node::TransactionSend,
-             storage::MapProof};
+use exonum::{
+    api::{Api, ApiError}, blockchain::{self, BlockProof, Blockchain, Transaction}, crypto::Hash,
+    node::TransactionSend, storage::MapProof,
+};
 use iron::{IronResult, Plugin, Request, Response};
 use router::Router;
 

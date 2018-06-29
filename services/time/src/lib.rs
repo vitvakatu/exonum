@@ -44,13 +44,12 @@ pub mod time_provider;
 /// Node transactions.
 pub mod transactions;
 
-use exonum::{api::Api,
-             blockchain::{ApiContext, Service, ServiceContext, Transaction, TransactionSet},
-             crypto::Hash,
-             encoding::{self, serialize::json::reexport::Value},
-             helpers::fabric::{Context, ServiceFactory},
-             messages::RawTransaction,
-             storage::{Fork, Snapshot}};
+use exonum::{
+    api::Api, blockchain::{ApiContext, Service, ServiceContext, Transaction, TransactionSet},
+    crypto::Hash, encoding::{self, serialize::json::reexport::Value},
+    helpers::fabric::{Context, ServiceFactory}, messages::RawTransaction,
+    storage::{Fork, Snapshot},
+};
 use iron::Handler;
 use router::Router;
 use schema::TimeSchema;

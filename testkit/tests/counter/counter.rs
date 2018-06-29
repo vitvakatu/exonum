@@ -18,18 +18,20 @@ extern crate bodyparser;
 extern crate iron;
 extern crate router;
 
-use exonum::{api::{Api, ApiError},
-             blockchain::{ApiContext, Blockchain, ExecutionError, ExecutionResult, Service,
-                          Transaction, TransactionSet},
-             crypto::{Hash, PublicKey},
-             encoding,
-             messages::{Message, RawTransaction},
-             node::{ApiSender, TransactionSend},
-             storage::{Entry, Fork, Snapshot}};
+use exonum::{
+    api::{Api, ApiError},
+    blockchain::{
+        ApiContext, Blockchain, ExecutionError, ExecutionResult, Service, Transaction,
+        TransactionSet,
+    },
+    crypto::{Hash, PublicKey}, encoding, messages::{Message, RawTransaction},
+    node::{ApiSender, TransactionSend}, storage::{Entry, Fork, Snapshot},
+};
 use serde_json;
 
-use self::{iron::{prelude::*, Handler},
-           router::Router};
+use self::{
+    iron::{prelude::*, Handler}, router::Router,
+};
 
 pub const SERVICE_ID: u16 = 1;
 

@@ -19,8 +19,9 @@ use router::Router;
 use serde::Serialize;
 use serde_json;
 
-use std::{num::ParseIntError,
-          sync::{Arc, RwLock}};
+use std::{
+    num::ParseIntError, sync::{Arc, RwLock},
+};
 
 use super::{TestKit, TestNetworkConfiguration};
 

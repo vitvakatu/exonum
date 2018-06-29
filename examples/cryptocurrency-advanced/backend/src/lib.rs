@@ -32,13 +32,11 @@ pub mod schema;
 pub mod transactions;
 pub mod wallet;
 
-use exonum::{blockchain::{ApiContext, Service, Transaction, TransactionSet},
-             crypto::Hash,
-             encoding::serialize::json::reexport as serde_json,
-             encoding::Error as EncodingError,
-             helpers::fabric::{self, Context},
-             messages::RawTransaction,
-             storage::Snapshot};
+use exonum::{
+    blockchain::{ApiContext, Service, Transaction, TransactionSet}, crypto::Hash,
+    encoding::serialize::json::reexport as serde_json, encoding::Error as EncodingError,
+    helpers::fabric::{self, Context}, messages::RawTransaction, storage::Snapshot,
+};
 use iron::Handler;
 use router::Router;
 

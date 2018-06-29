@@ -155,19 +155,17 @@ use futures::{sync::mpsc, Future, Stream};
 use iron::Iron;
 use tokio_core::reactor::Core;
 
-use std::{fmt,
-          net::SocketAddr,
-          sync::{Arc, RwLock},
-          thread};
+use std::{
+    fmt, net::SocketAddr, sync::{Arc, RwLock}, thread,
+};
 
-use exonum::{blockchain::{Blockchain, Schema as CoreSchema, Service, StoredConfiguration,
-                          Transaction},
-             crypto::{self, Hash},
-             explorer::{BlockWithTransactions, BlockchainExplorer},
-             helpers::{Height, ValidatorId},
-             messages::RawMessage,
-             node::{ApiSender, ExternalMessage, NodeApiConfig, State as NodeState},
-             storage::{MemoryDB, Patch, Snapshot}};
+use exonum::{
+    blockchain::{Blockchain, Schema as CoreSchema, Service, StoredConfiguration, Transaction},
+    crypto::{self, Hash}, explorer::{BlockWithTransactions, BlockchainExplorer},
+    helpers::{Height, ValidatorId}, messages::RawMessage,
+    node::{ApiSender, ExternalMessage, NodeApiConfig, State as NodeState},
+    storage::{MemoryDB, Patch, Snapshot},
+};
 
 use checkpoint_db::{CheckpointDb, CheckpointDbHandler};
 use handler::create_testkit_handler;

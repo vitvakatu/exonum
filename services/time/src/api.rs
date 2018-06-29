@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
-use exonum::{api::Api,
-             blockchain::{Blockchain, Schema},
-             crypto::PublicKey,
-             encoding::serialize::json::reexport as serde_json};
+use exonum::{
+    api::Api, blockchain::{Blockchain, Schema}, crypto::PublicKey,
+    encoding::serialize::json::reexport as serde_json,
+};
 use iron::prelude::*;
 use router::Router;
 

@@ -23,7 +23,6 @@
 //! [docs]: https://exonum.com/doc/get-started/create-service
 //! [readme]: https://github.com/exonum/cryptocurrency#readme
 
-
 extern crate bodyparser;
 #[macro_use]
 extern crate exonum;
@@ -40,8 +39,9 @@ extern crate serde_json;
 
 /// Persistent data.
 pub mod schema {
-    use exonum::{crypto::PublicKey,
-                 storage::{MapIndex, Snapshot}};
+    use exonum::{
+        crypto::PublicKey, storage::{MapIndex, Snapshot},
+    };
 
     // Declare the data to be stored in the blockchain, namely wallets with balances.
     // See [serialization docs][1] for details.
@@ -176,9 +176,9 @@ pub mod errors {
 
 /// Contracts.
 pub mod contracts {
-    use exonum::{blockchain::{ExecutionResult, Transaction},
-                 messages::Message,
-                 storage::Fork};
+    use exonum::{
+        blockchain::{ExecutionResult, Transaction}, messages::Message, storage::Fork,
+    };
 
     use errors::Error;
     use schema::{CurrencySchema, Wallet};
@@ -255,11 +255,10 @@ pub mod contracts {
 /// REST API.
 pub mod api {
     use bodyparser;
-    use exonum::{api::{Api, ApiError},
-                 blockchain::{Blockchain, Transaction},
-                 crypto::{Hash, PublicKey},
-                 encoding::serialize::FromHex,
-                 node::{ApiSender, TransactionSend}};
+    use exonum::{
+        api::{Api, ApiError}, blockchain::{Blockchain, Transaction}, crypto::{Hash, PublicKey},
+        encoding::serialize::FromHex, node::{ApiSender, TransactionSend},
+    };
     use iron::{headers::ContentType, modifiers::Header, prelude::*, status::Status};
     use router::Router;
     use serde_json;
@@ -370,12 +369,10 @@ pub mod api {
 
 /// Service declaration.
 pub mod service {
-    use exonum::{api::Api,
-                 blockchain::{ApiContext, Service, Transaction, TransactionSet},
-                 crypto::Hash,
-                 encoding,
-                 messages::RawTransaction,
-                 storage::Snapshot};
+    use exonum::{
+        api::Api, blockchain::{ApiContext, Service, Transaction, TransactionSet}, crypto::Hash,
+        encoding, messages::RawTransaction, storage::Snapshot,
+    };
     use iron::Handler;
     use router::Router;
 

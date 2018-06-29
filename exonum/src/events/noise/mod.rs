@@ -13,17 +13,17 @@
 // limitations under the License.
 
 use futures::future::{done, Future};
-use tokio_io::{codec::Framed,
-               io::{read_exact, write_all},
-               AsyncRead,
-               AsyncWrite};
+use tokio_io::{
+    codec::Framed, io::{read_exact, write_all}, AsyncRead, AsyncWrite,
+};
 
 use std::io;
 
 use crypto::{PublicKey, SecretKey};
 use events::noise::wrapper::NOISE_MAX_HANDSHAKE_MESSAGE_LENGTH;
-use events::{codec::MessagesCodec,
-             noise::wrapper::{NoiseWrapper, HANDSHAKE_HEADER_LENGTH}};
+use events::{
+    codec::MessagesCodec, noise::wrapper::{NoiseWrapper, HANDSHAKE_HEADER_LENGTH},
+};
 
 pub mod wrapper;
 
