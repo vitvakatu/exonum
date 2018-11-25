@@ -29,18 +29,21 @@ encoding_struct! {
         history_len:        u64,
         /// `Hash` of the transactions history.
         history_hash:       &Hash,
+        // Slice for used transactions
+        used: &[Hash],
     }
 }
 
 impl Wallet {
     /// Returns a copy of this wallet with updated balance.
-    pub fn set_balance(self, balance: u64, history_hash: &Hash) -> Self {
+    pub fn set_balance(self, balance: u64, history_hash: &Hash, used: &[Hash]) -> Self {
         Self::new(
             self.pub_key(),
             self.name(),
             balance,
             self.history_len() + 1,
             history_hash,
+            used,
         )
     }
 }

@@ -48,6 +48,7 @@ define_names!(
     PEERS_CACHE => "peers_cache";
     CONSENSUS_MESSAGES_CACHE => "consensus_messages_cache";
     CONSENSUS_ROUND => "consensus_round";
+    UNSPEND_TRANSACTIONS => "unspend_transactions";
 );
 
 encoding_struct! {
@@ -120,6 +121,11 @@ where
     pub fn transactions_pool_len(&self) -> u64 {
         let pool = self.transactions_pool_len_index();
         pool.get().unwrap_or(0)
+    }
+
+    /// Returns Unspend transactions outputs
+    pub fn unspend_transactions(&self) -> KeySetIndex<&T, Hash> {
+        KeySetIndex::new(UNSPEND_TRANSACTIONS, &self.view)
     }
 
     /// Returns a table that keeps the block height and transaction position inside the block for every
@@ -394,6 +400,11 @@ impl<'a> Schema<&'a mut Fork> {
         KeySetIndex::new(TRANSACTIONS_POOL, self.view)
     }
 
+    /// list of unspend transactions
+    pub fn unspend_transactions_mut(&mut self) -> KeySetIndex<&mut Fork, Hash> {
+        KeySetIndex::new(UNSPEND_TRANSACTIONS, self.view)
+    }
+
     /// Mutable reference to the [`transactions_pool_len_index`][1] index.
     ///
     /// [1]: struct.Schema.html#method.transactions_pool_len_index
@@ -529,17 +540,46 @@ impl<'a> Schema<&'a mut Fork> {
         self.transactions_mut().put(&tx.hash(), tx);
     }
 
+    /// Add transaction into utxo list
+    pub fn add_transaction_into_utxo(&mut self, tx: RawMessage) {
+        self.unspend_transactions_mut().insert(tx.hash());
+    }
+
     /// Changes the transaction status from `in_pool`, to `committed`.
     pub(crate) fn commit_transaction(&mut self, hash: &Hash) {
         self.transactions_pool_mut().remove(hash);
     }
 
-    /// Removes transaction from the persistent pool.
-    #[doc(hidden)]
-    pub fn reject_transaction(&mut self, hash: &Hash) -> Result<(), ()> {
+    ///delete transaction if hash was used
+    pub(crate) fn delete_due_to_used_hash(&mut self, hash: &Hash) {
+        self.transactions_pool_mut().remove(hash);
+    }
+
+    pub(crate) fn remove_used_output(&mut self, hash: &Hash) {
+        self.unspend_transactions_mut().remove(hash);
+    }
+
+    pub(crate) fn reject_transaction(&mut self, hash: &Hash) -> Result<(), ()> {
         let contains = self.transactions_pool_mut().contains(hash);
         self.transactions_pool_mut().remove(hash);
         self.transactions_mut().remove(hash);
+
+        if contains {
+            let x = self.transactions_pool_len_index().get().unwrap();
+            self.transactions_pool_len_index_mut().set(x - 1);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Removes transaction from the persistent pool.
+    #[cfg(test)]
+    pub(crate) fn reject_transaction(&mut self, hash: &Hash) -> Result<(), ()> {
+        let contains = self.transactions_pool_mut().contains(hash);
+        self.transactions_pool_mut().remove(hash);
+        self.transactions_mut().remove(hash);
+
         if contains {
             let x = self.transactions_pool_len_index().get().unwrap();
             self.transactions_pool_len_index_mut().set(x - 1);

@@ -19,8 +19,10 @@
 #![allow(bare_trait_objects)]
 
 use exonum::{
-    blockchain::{ExecutionError, ExecutionResult, Transaction}, crypto::{CryptoHash, PublicKey},
-    messages::Message, storage::Fork,
+    blockchain::{ExecutionError, ExecutionResult, Transaction},
+    crypto::{CryptoHash, Hash, PublicKey},
+    messages::Message,
+    storage::Fork,
 };
 
 use schema::Schema;
@@ -32,7 +34,7 @@ use CRYPTOCURRENCY_SERVICE_ID;
 pub enum Error {
     /// Wallet already exists.
     ///
-    /// Can be emitted by `CreateWallet`.
+    /// Can be emitted by `CreateWallet`
     #[fail(display = "Wallet already exists")]
     WalletAlreadyExists = 0,
 
@@ -53,6 +55,10 @@ pub enum Error {
     /// Can be emitted by `Transfer`.
     #[fail(display = "Insufficient currency amount")]
     InsufficientCurrencyAmount = 3,
+
+    /// Error for used Hash
+    #[fail(display = "Used hash")]
+    UsedHash = 4,
 }
 
 impl From<Error> for ExecutionError {
@@ -69,12 +75,21 @@ transactions! {
 
         /// Transfer `amount` of the currency from one wallet to another.
         struct Transfer {
+            tx_hash1: &Hash,
+            tx_hash2: &Hash,
             /// `PublicKey` of sender's wallet.
-            from:    &PublicKey,
+            from1:    &PublicKey,
+            from2:    &PublicKey,
             /// `PublicKey` of receiver's wallet.
-            to:      &PublicKey,
+            to1:      &PublicKey,
+            to2:      &PublicKey,
+            change1: &PublicKey,
+            change2: &PublicKey,
             /// Amount of currency to transfer.
-            amount:  u64,
+            amount1:  u64,
+            amount2:  u64,
+            loss1: u64,
+            loss2: u64,
             /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
             ///
             /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
@@ -100,10 +115,28 @@ transactions! {
             /// Name of the new wallet.
             name:    &str,
         }
+
+        struct Transfer_One {
+            tx_hash: &Hash,
+            /// `PublicKey` of sender's wallet.
+            from:    &PublicKey,
+            /// `PublicKey` of receiver's wallet.
+            to:      &PublicKey,
+            change: &PublicKey,
+            /// Amount of currency to transfer.
+            amount:  u64,
+            /// amount loss
+            loss: u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
     }
 }
 
-impl Transaction for Transfer {
+
+impl Transaction for Transfer_One {
     fn verify(&self) -> bool {
         (self.from() != self.to()) && self.verify_signature(self.from())
     }
@@ -112,20 +145,114 @@ impl Transaction for Transfer {
         let mut schema = Schema::new(fork);
 
         let from = self.from();
+        let change = from;
         let to = self.to();
         let hash = self.hash();
         let amount = self.amount();
+        let loss = self.loss();
+        let tx_hash = self.tx_hash();
 
         let sender = schema.wallet(from).ok_or(Error::SenderNotFound)?;
 
-        let receiver = schema.wallet(to).ok_or(Error::ReceiverNotFound)?;
+        let mut used = sender.used().to_vec();
 
+        for i in &used {
+            if (i == tx_hash) {
+                println!(
+                    "ERROR: This hash was used before"
+                );
+                Err(Error::UsedHash)?
+            }
+        }
+
+        used.push(*tx_hash);
+
+        let receiver = schema.wallet(to).ok_or(Error::ReceiverNotFound)?;
+        let new = receiver.used().to_vec();
         if sender.balance() < amount {
             Err(Error::InsufficientCurrencyAmount)?
         }
 
-        schema.decrease_wallet_balance(sender, amount, &hash);
-        schema.increase_wallet_balance(receiver, amount, &hash);
+        schema.decrease_wallet_balance(sender, amount, &hash, &used);
+        schema.increase_wallet_balance(receiver, amount, &hash, &new);
+
+        Ok(())
+    }
+}
+
+
+impl Transaction for Transfer {
+    fn verify(&self) -> bool {
+
+        (self.from1() != self.to1()) && self.verify_signature(self.from1())
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        let mut schema = Schema::new(fork);
+
+        println!(
+            "start execute"
+        );
+
+        let from1 = self.from1();
+        let from2 = self.from2();
+        let to1 = self.to1();
+        let to2 = self.to2();
+
+        let amount1 = self.amount1();
+        let amount2 = self.amount2();
+        let loss1 = self.loss1();
+        let loss2 = self.loss2();
+        let tx_hash1 = self.tx_hash1();
+        let tx_hash2 = self.tx_hash2();
+
+        let hash = self.hash();
+
+        let sender1 = schema.wallet(from1).ok_or(Error::SenderNotFound)?;
+        let sender2 = schema.wallet(from2).ok_or(Error::SenderNotFound)?;
+
+        let mut used1 = sender1.used().to_vec();
+
+        for i in &used1 {
+            if (i == tx_hash1) {
+                println!(
+                    "ERROR: This hash was used before"
+                );
+                Err(Error::UsedHash)?
+            }
+        }
+
+        used1.push(*tx_hash1);
+
+        let mut used2 = sender2.used().to_vec();
+
+        for i in &used2 {
+            if (i == tx_hash2) {
+                println!(
+                    "ERROR: This hash was used before"
+                );
+                Err(Error::UsedHash)?
+            }
+        }
+
+        used1.push(*tx_hash2);
+
+        let receiver1 = schema.wallet(to1).ok_or(Error::ReceiverNotFound)?;
+        let receiver2 = schema.wallet(to2).ok_or(Error::ReceiverNotFound)?;
+        let new1 = receiver1.used().to_vec();
+        let new2 = receiver2.used().to_vec();
+        if sender1.balance() < amount1 {
+            Err(Error::InsufficientCurrencyAmount)?
+        }
+
+        schema.decrease_wallet_balance(sender1, amount1, &hash, &used1);
+        schema.decrease_wallet_balance(sender2, amount2, &hash, &used2);
+        schema.increase_wallet_balance(receiver1, amount1, &hash, &new1);
+        schema.increase_wallet_balance(receiver2, amount2, &hash, &new2);
+
+        println!(
+            "ended execute"
+        );
 
         Ok(())
     }
@@ -143,7 +270,8 @@ impl Transaction for Issue {
 
         if let Some(wallet) = schema.wallet(pub_key) {
             let amount = self.amount();
-            schema.increase_wallet_balance(wallet, amount, &hash);
+            let new = wallet.used().to_vec();
+            schema.increase_wallet_balance(wallet, amount, &hash, &new);
             Ok(())
         } else {
             Err(Error::ReceiverNotFound)?
@@ -163,7 +291,8 @@ impl Transaction for CreateWallet {
 
         if schema.wallet(pub_key).is_none() {
             let name = self.name();
-            schema.create_wallet(pub_key, name, &hash);
+            let using = Vec::new();
+            schema.create_wallet(pub_key, name, &hash, &using);
             Ok(())
         } else {
             Err(Error::WalletAlreadyExists)?

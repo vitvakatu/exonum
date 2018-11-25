@@ -56,7 +56,7 @@ use std::{
 use crypto::{self, CryptoHash, Hash, PublicKey, SecretKey};
 use encoding::Error as MessageError;
 use helpers::{Height, Round, ValidatorId};
-use messages::{Connect, Precommit, RawMessage, CONSENSUS as CORE_SERVICE};
+use messages::{Connect, Precommit, RawMessage, CONSENSUS as CORE_SERVICE, Message};
 use node::ApiSender;
 use storage::{self, Database, Error, Fork, Patch, Snapshot};
 
@@ -68,6 +68,119 @@ mod service;
 mod transaction;
 #[cfg(test)]
 mod tests;
+
+
+#[macro_export]
+transactions! {
+    /// Transaction group.
+    pub WalletTransactions {
+        const SERVICE_ID = 128;
+
+        /// Transfer `amount` of the currency from one wallet to another.
+        struct Transfer {
+            tx_hash1: &Hash,
+            tx_hash2: &Hash,
+            /// `PublicKey` of sender's wallet.
+            from1:    &PublicKey,
+            from2:    &PublicKey,
+            /// `PublicKey` of receiver's wallet.
+            to1:      &PublicKey,
+            to2:      &PublicKey,
+            change1: &PublicKey,
+            change2: &PublicKey,
+            /// Amount of currency to transfer.
+            amount1:  u64,
+            amount2:  u64,
+            loss1: u64,
+            loss2: u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+
+        /// Issue `amount` of the currency to the `wallet`.
+        struct Issue {
+            /// `PublicKey` of the wallet.
+            pub_key:  &PublicKey,
+            /// Issued amount of currency.
+            amount:  u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+
+        /// Create wallet with the given `name`.
+        struct CreateWallet {
+            /// `PublicKey` of the new wallet.
+            pub_key: &PublicKey,
+            /// Name of the new wallet.
+            name:    &str,
+        }
+
+        struct Transfer_One {
+            tx_hash: &Hash,
+            /// `PublicKey` of sender's wallet.
+            from:    &PublicKey,
+            /// `PublicKey` of receiver's wallet.
+            to:      &PublicKey,
+            change: &PublicKey,
+            /// Amount of currency to transfer.
+            amount:  u64,
+            loss: u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+    }
+}
+
+
+/// list of all transactions
+
+impl Transaction for Transfer_One {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+
+impl Transaction for Transfer {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+impl Transaction for Issue {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+impl Transaction for CreateWallet {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
 
 /// Exonum blockchain instance with a certain services set and data storage.
 ///
@@ -445,7 +558,24 @@ impl Blockchain {
 
         let mut schema = Schema::new(fork);
         schema.transaction_results_mut().put(&tx_hash, tx_result);
+        let raw_tx = schema.transactions_mut().get(&tx_hash).unwrap().clone();
         schema.commit_transaction(&tx_hash);
+        if raw_tx.message_type() == 3 {
+            let tx: Transfer_One = Message::from_raw(raw_tx.clone()).unwrap();
+            let hash = tx.tx_hash();
+            println!("{:?} deleting", hash);
+            schema.remove_used_output(&hash);
+        }
+        if raw_tx.message_type() == 0 {
+            let tx: Transfer = Message::from_raw(raw_tx.clone()).unwrap();
+            let hash1 = tx.tx_hash1();
+            let hash2 = tx.tx_hash2();
+            println!("{:?} deleting", hash1);
+            println!("{:?} deleting", hash2);
+            schema.remove_used_output(&hash1);
+            schema.remove_used_output(&hash2);
+        }
+
         schema.block_transactions_mut(height).push(tx_hash);
         let location = TxLocation::new(height, index as u64);
         schema.transactions_locations_mut().put(&tx_hash, location);

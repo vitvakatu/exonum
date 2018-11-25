@@ -14,7 +14,7 @@
 
 use std::{collections::HashSet, error::Error};
 
-use blockchain::{Schema, Transaction};
+use blockchain::{Schema, Transaction, ExecutionError, ExecutionResult};
 use crypto::{CryptoHash, Hash, PublicKey};
 use events::InternalRequest;
 use helpers::{Height, Round, ValidatorId};
@@ -24,6 +24,302 @@ use messages::{
 };
 use node::{NodeHandler, RequestData};
 use storage::Patch;
+use storage::Fork;
+
+///#[macro_export]
+macro_rules! transactions {
+    // Empty variant.
+    {} => {};
+    // Variant with the private enum.
+    {
+        $(#[$tx_set_attr:meta])*
+        $transaction_set:ident {
+            const SERVICE_ID = $service_id:expr;
+
+            $(
+                $(#[$tx_attr:meta])*
+                struct $name:ident {
+                    $($def:tt)*
+                }
+            )*
+        }
+    } => {
+        messages! {
+            const SERVICE_ID = $service_id;
+            $(
+                $(#[$tx_attr])*
+                struct $name {
+                    $($def)*
+                }
+            )*
+        }
+
+        #[derive(Clone, Debug)]
+        $(#[$tx_set_attr])*
+        enum $transaction_set {
+            $(
+                #[allow(missing_docs)]
+                $name($name),
+            )*
+        }
+
+        transactions!(@implement $transaction_set, $($name)*);
+    };
+    // Variant with the public enum without restrictions.
+    {
+        $(#[$tx_set_attr:meta])*
+        pub $transaction_set:ident {
+            const SERVICE_ID = $service_id:expr;
+
+            $(
+                $(#[$tx_attr:meta])*
+                struct $name:ident {
+                    $($def:tt)*
+                }
+            )*
+        }
+    } => {
+        messages! {
+            const SERVICE_ID = $service_id;
+            $(
+                $(#[$tx_attr])*
+                struct $name {
+                    $($def)*
+                }
+            )*
+        }
+
+        #[derive(Clone, Debug)]
+        $(#[$tx_set_attr])*
+        pub enum $transaction_set {
+            $(
+                #[allow(missing_docs)]
+                $name($name),
+            )*
+        }
+
+        transactions!(@implement $transaction_set, $($name)*);
+    };
+    // Variant with the public enum with visibility restrictions.
+    {
+        $(#[$tx_set_attr:meta])*
+        pub($($vis:tt)+) $transaction_set:ident {
+            const SERVICE_ID = $service_id:expr;
+
+            $(
+                $(#[$tx_attr:meta])*
+                struct $name:ident {
+                    $($def:tt)*
+                }
+            )*
+        }
+    } => {
+        messages! {
+            const SERVICE_ID = $service_id;
+            $(
+                $(#[$tx_attr])*
+                struct $name {
+                    $($def)*
+                }
+            )*
+        }
+
+        #[derive(Clone, Debug)]
+        $(#[$tx_set_attr])*
+        pub($($vis)+) enum $transaction_set {
+            $(
+                #[allow(missing_docs)]
+                $name($name),
+            )*
+        }
+
+        transactions!(@implement $transaction_set, $($name)*);
+    };
+    // Implementation details
+    (@implement $transaction_set:ident, $($name:ident)*) => {
+
+        impl $crate::blockchain::TransactionSet for $transaction_set {
+            fn tx_from_raw(
+                raw: $crate::messages::RawTransaction
+            ) -> ::std::result::Result<Self, $crate::encoding::Error> {
+                let message_type = raw.message_type();
+                match message_type {
+                    $(
+                    <$name as $crate::messages::ServiceMessage>::MESSAGE_ID => {
+                        let tx = $crate::messages::Message::from_raw(raw)?;
+                        Ok($transaction_set::$name(tx))
+                    }
+                    )*
+                    _ => return Err($crate::encoding::Error::IncorrectMessageType { message_type })
+                }
+            }
+        }
+
+        impl Into<Box<dyn $crate::blockchain::Transaction>> for $transaction_set {
+            fn into(self) -> Box<dyn $crate::blockchain::Transaction> {
+                match self {$(
+                    $transaction_set::$name(tx) => Box::new(tx),
+                )*}
+            }
+        }
+
+        impl<'de> $crate::encoding::serialize::reexport::Deserialize<'de> for $transaction_set {
+            fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+            where
+                D: $crate::encoding::serialize::reexport::Deserializer<'de>,
+            {
+                use $crate::encoding::serialize::json::reexport::{Value, from_value};
+                use $crate::encoding::serialize::reexport::{DeError, Deserialize};
+
+                let value = <Value as Deserialize>::deserialize(deserializer)?;
+                let message_id: Value = value.get("message_id")
+                    .ok_or(D::Error::custom("Can't get message_id from json"))?
+                    .clone();
+                let message_id: u16 = from_value(message_id)
+                    .map_err(|e| D::Error::custom(
+                        format!("Can't deserialize message_id: {}", e)
+                    ))?;
+
+                match message_id {
+                    $(
+                    <$name as $crate::messages::ServiceMessage>::MESSAGE_ID =>
+                        <$name as $crate::encoding::serialize::json::ExonumJsonDeserialize>
+                            ::deserialize(&value)
+                            .map_err(|e| D::Error::custom(
+                                format!("Can't deserialize a value: {}", e.description())
+                            ))
+                            .map($transaction_set::$name),
+                    )*
+                    _ => Err(D::Error::custom(format!("invalid message_id: {}", message_id))),
+                }
+            }
+        }
+
+        impl $crate::encoding::serialize::reexport::Serialize for $transaction_set {
+            fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+            where
+                S: $crate::encoding::serialize::reexport::Serializer,
+            {
+                use $crate::encoding::serialize::reexport::Serialize;
+
+                match self {$(
+                    &$transaction_set::$name(ref tx) => Serialize::serialize(tx, serializer),
+                )*}
+            }
+        }
+    };
+}
+
+transactions! {
+    /// Transaction group.
+    pub WalletTransactions {
+        const SERVICE_ID = 128;
+
+        /// Transfer `amount` of the currency from one wallet to another.
+        struct Transfer {
+            tx_hash1: &Hash,
+            tx_hash2: &Hash,
+            /// `PublicKey` of sender's wallet.
+            from1:    &PublicKey,
+            from2:    &PublicKey,
+            /// `PublicKey` of receiver's wallet.
+            to1:      &PublicKey,
+            to2:      &PublicKey,
+            change1: &PublicKey,
+            change2: &PublicKey,
+            /// Amount of currency to transfer.
+            amount1:  u64,
+            amount2:  u64,
+            loss1: u64,
+            loss2: u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+
+        /// Issue `amount` of the currency to the `wallet`.
+        struct Issue {
+            /// `PublicKey` of the wallet.
+            pub_key:  &PublicKey,
+            /// Issued amount of currency.
+            amount:  u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+
+        /// Create wallet with the given `name`.
+        struct CreateWallet {
+            /// `PublicKey` of the new wallet.
+            pub_key: &PublicKey,
+            /// Name of the new wallet.
+            name:    &str,
+        }
+
+        struct Transfer_One {
+            tx_hash: &Hash,
+            /// `PublicKey` of sender's wallet.
+            from:    &PublicKey,
+            /// `PublicKey` of receiver's wallet.
+            to:      &PublicKey,
+            change: &PublicKey,
+            /// Amount of currency to transfer.
+            amount:  u64,
+            loss: u64,
+            /// Auxiliary number to guarantee [non-idempotence][idempotence] of transactions.
+            ///
+            /// [idempotence]: https://en.wikipedia.org/wiki/Idempotence
+            seed:    u64,
+        }
+    }
+}
+
+
+impl Transaction for Transfer_One {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+
+impl Transaction for Transfer {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+impl Transaction for Issue {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+impl Transaction for CreateWallet {
+    fn verify(&self) -> bool {
+        true
+    }
+
+    fn execute(&self, fork: &mut Fork) -> ExecutionResult {
+        Ok(())
+    }
+}
+
+
+
 
 // TODO Reduce view invocations. (ECR-171)
 impl NodeHandler {
@@ -547,7 +843,8 @@ impl NodeHandler {
         let mut fork = self.blockchain.fork();
         {
             let mut schema = Schema::new(&mut fork);
-            schema.add_transaction_into_pool(msg);
+            schema.add_transaction_into_pool(msg.clone());
+            schema.add_transaction_into_utxo(msg);
         }
         self.blockchain
             .merge(fork.into_patch())
@@ -707,13 +1004,83 @@ impl NodeHandler {
             let schema = Schema::new(&snapshot);
             let pool = schema.transactions_pool();
             let pool_len = schema.transactions_pool_len();
+            let transactions = schema.transactions();
+            let utxos = schema.unspend_transactions();
 
             info!("LEADER: pool = {}", pool_len);
 
             let round = self.state.round();
             let max_count = ::std::cmp::min(u64::from(self.txs_block_limit()), pool_len);
+            let mut count = 0;
+            let mut for_delete: Vec<Hash> = Vec::new();
 
-            let txs: Vec<Hash> = pool.iter().take(max_count as usize).collect();
+            //let txs: Vec<Hash> = pool.iter().take(max_count as usize).collect();
+
+            let mut tmp: Vec<Hash> = Vec::new();
+
+            // select transactions with available UTXO
+
+            for trx_hash in pool.iter() {
+                //println!("{:?}", trx_hash);
+                let raw_tx = transactions.get(&trx_hash).unwrap();
+                //Check transaction type
+                if raw_tx.message_type() == 1 {
+                }
+
+                if raw_tx.message_type() == 3 {
+                    let tx: Transfer_One = Message::from_raw(raw_tx.clone()).unwrap();
+                    let hash = tx.tx_hash();
+                    if utxos.contains(&hash) {
+                        println!("{:?} contains", hash);
+                        count += 1;
+                        tmp.push(trx_hash);
+                    } else {
+                        println!("{:?} this hash was used. Deleting {:?} transaction from pool", hash, trx_hash);
+                        for_delete.push(trx_hash);
+                    }
+                } else {
+                    if raw_tx.message_type() == 0 {
+                        let tx: Transfer = Message::from_raw(raw_tx.clone()).unwrap();
+                        let hash1 = tx.tx_hash1();
+                        let hash2 = tx.tx_hash2();
+                        if utxos.contains(&hash1) && utxos.contains(&hash2) {
+                            println!("{:?} and {:?} contains", hash1, hash2);
+                            count += 1;
+                            tmp.push(trx_hash);
+                        } else {
+                            println!("{:?} or {:?} hash was used. Deleting {:?} transaction from pool", hash1, hash2, trx_hash);
+                            for_delete.push(trx_hash);
+                        }
+                    } else {
+                        count += 1;
+                        tmp.push(trx_hash);
+                    }
+                    if (count >= max_count) {
+                        break;
+                    }
+                }
+
+
+
+            }
+
+            let mut fork = self.blockchain.fork();
+            {
+                let mut schema = Schema::new(&mut fork);
+                for hash in &for_delete {
+                    schema.reject_transaction(&hash);
+                    schema.remove_used_output(&hash);
+                }
+
+            }
+            self.blockchain
+                .merge(fork.into_patch())
+                .expect("Unable to remove some transactions from pool.");
+
+            let txs = tmp.clone();
+
+            println!("{:?} --- want to commit", txs);
+
             let propose = Propose::new(
                 validator_id,
                 self.state.height(),
