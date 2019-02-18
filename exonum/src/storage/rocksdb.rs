@@ -18,7 +18,7 @@
 
 pub use rocksdb::{BlockBasedOptions as RocksBlockOptions, WriteOptions as RocksDBWriteOptions};
 
-use rocksdb::{self, utils::get_cf_names, DBIterator, Options as RocksDbOptions, WriteBatch};
+use rocksdb::{self, DBIterator, Options as RocksDbOptions, WriteBatch};
 
 use std::{error::Error, fmt, iter::Peekable, mem, path::Path, sync::Arc};
 
@@ -56,8 +56,8 @@ pub struct RocksDBSnapshot {
 }
 
 /// An iterator over the entries of a `RocksDB`.
-struct RocksDBIterator {
-    iter: Peekable<DBIterator>,
+struct RocksDBIterator<'a> {
+    iter: Peekable<DBIterator<'a>>,
     key: Option<Box<[u8]>>,
     value: Option<Box<[u8]>>,
 }
@@ -70,9 +70,9 @@ impl RocksDB {
     /// be created at the indicated path.
     pub fn open<P: AsRef<Path>>(path: P, options: &DbOptions) -> storage::Result<Self> {
         let db = {
-            if let Ok(names) = get_cf_names(&path) {
+            if let Ok(names) = rocksdb::DB::list_cf(&options.to_rocksdb(), &path) {
                 let cf_names = names.iter().map(|name| name.as_str()).collect::<Vec<_>>();
-                rocksdb::DB::open_cf(&options.to_rocksdb(), path, cf_names.as_ref())?
+                rocksdb::DB::open_cf(&options.to_rocksdb(), path, &cf_names)?
             } else {
                 rocksdb::DB::open(&options.to_rocksdb(), path)?
             }
@@ -92,7 +92,7 @@ impl RocksDB {
             };
             for (key, change) in changes {
                 match change {
-                    Change::Put(ref value) => batch.put_cf(cf, key.as_ref(), value)?,
+                    Change::Put(ref value) => batch.put_cf(cf, &key, value)?,
                     Change::Delete => batch.delete_cf(cf, &key)?,
                 }
             }
@@ -150,7 +150,7 @@ impl Snapshot for RocksDBSnapshot {
     }
 }
 
-impl Iterator for RocksDBIterator {
+impl<'a> Iterator for RocksDBIterator<'a> {
     fn next(&mut self) -> Option<(&[u8], &[u8])> {
         if let Some((key, value)) = self.iter.next() {
             self.key = Some(key);

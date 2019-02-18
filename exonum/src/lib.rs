@@ -61,7 +61,7 @@ extern crate erased_serde;
 pub extern crate exonum_crypto as crypto;
 #[macro_use]
 extern crate exonum_derive;
-extern crate exonum_rocksdb as rocksdb;
+extern crate rocksdb;
 #[cfg(feature = "sodiumoxide-crypto")]
 extern crate exonum_sodiumoxide as sodiumoxide;
 #[macro_use]
