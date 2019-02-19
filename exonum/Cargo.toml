@@ -54,7 +54,7 @@ rust_decimal = "0.10.2"
 protobuf = { version = "2.2.0", features = ["with-serde"] }
 ctrlc = "3.1.1"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1038c71df85" }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1038c71df85", default-features = false, features = ["snappy"] }
 exonum_sodiumoxide = { version = "0.0.20", optional = true }
 exonum-crypto = { version = "0.10.4", path = "../components/crypto" }
 exonum-derive = { version = "0.10.0", path = "../components/derive" }
